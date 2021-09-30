@@ -37,8 +37,8 @@ class Cursor:
         self.pos_x = min(self.pos_x, len(self.buffer[self.pos_y]))
 
     def move_down(self, steps):
-        self.pos_y = self.pos_y + steps if self.pos_y - steps < len(
-            self.buffer) else self.pos_y
+        self.pos_y = self.pos_y + steps if self.pos_y < len(
+            self.buffer)-1 else self.pos_y
         self.pos_x = min(self.pos_x, len(self.buffer[self.pos_y]))
 
     def move_right(self, steps):
