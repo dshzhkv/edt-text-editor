@@ -25,6 +25,19 @@ class Buffer:
         new = current[:pos_x] + string + current[pos_x:]
         self.lines.insert(pos_y, new)
 
+    def delete(self, cursor):
+        pos_x, pos_y = cursor.pos_x, cursor.pos_y
+        if (pos_y, pos_x) < (len(self.lines), len(self.lines[pos_y])):
+            current = self.lines.pop(pos_y)
+            if pos_x < len(current):
+                new = current[:pos_x] + current[pos_x + 1:]
+            else:
+                if self.lines:
+                    new = current + self.lines.pop(pos_y)
+                else:
+                    new = current
+            self.lines.insert(pos_y, new)
+
 
 class Cursor:
     def __init__(self, pos_y, pos_x, buffer):
@@ -38,7 +51,7 @@ class Cursor:
 
     def move_down(self, steps):
         self.pos_y = self.pos_y + steps if self.pos_y < len(
-            self.buffer)-1 else self.pos_y
+            self.buffer) - 1 else self.pos_y
         self.pos_x = min(self.pos_x, len(self.buffer[self.pos_y]))
 
     def move_right(self, steps):
@@ -46,7 +59,12 @@ class Cursor:
             self.buffer[self.pos_y]) else self.pos_x
 
     def move_left(self, steps):
-        self.pos_x = self.pos_x - steps if self.pos_x > 0 else self.pos_x
+        if self.pos_x > 0:
+            self.pos_x -= steps
+        else:
+            if self.pos_y > 0:
+                self.pos_y -= steps
+                self.pos_x = len(self.buffer[self.pos_y])
 
 
 def main(stdscr):
@@ -76,8 +94,14 @@ def main(stdscr):
             cursor.move_left(1)
         elif k == "KEY_RIGHT":
             cursor.move_right(1)
+        elif k == "KEY_BACKSPACE":
+            if (cursor.pos_y, cursor.pos_x) > (0, 0):
+                cursor.move_left(1)
+                buffer.delete(cursor)
         else:
             buffer.insert(cursor, k)
+            for _ in k:
+                cursor.move_right(1)
 
 
 if __name__ == "__main__":
