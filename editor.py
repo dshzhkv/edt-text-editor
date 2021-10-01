@@ -27,16 +27,17 @@ class Buffer:
 
     def delete(self, cursor):
         pos_x, pos_y = cursor.pos_x, cursor.pos_y
-        if (pos_y, pos_x) < (len(self.lines), len(self.lines[pos_y])):
+        if (pos_y, pos_x) < (len(self.lines), len(self[pos_y])):
             current = self.lines.pop(pos_y)
-            if pos_x < len(current):
-                new = current[:pos_x] + current[pos_x + 1:]
-            else:
-                if self.lines:
-                    new = current + self.lines.pop(pos_y)
-                else:
-                    new = current
+            new = self.make_new_line(current, pos_x, pos_y)
             self.lines.insert(pos_y, new)
+
+    def make_new_line(self, current, pos_x, pos_y):
+        if pos_x < len(current):
+            return current[:pos_x] + current[pos_x + 1:]
+        if self.lines:
+            return current + self.lines.pop(pos_y)
+        return current
 
 
 class Cursor:
