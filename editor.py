@@ -130,6 +130,26 @@ class Cursor:
             elif self.pos_x > 0:
                 self.pos_x -= 1
 
+    def move_up(self, steps):
+        for i in range(steps):
+            if self.pos_y > 0:
+                if self.pos_x < self.buffer.lines_len[self.pos_y - 1]:
+                    self.pos_y -= 1
+                else:
+                    self.pos_x = self.buffer.lines_len[self.pos_y - 1]
+                    self.pos_y -= 1
+
+    def move_down(self, steps):
+        for i in range(steps):
+            if self.pos_y + 1 in self.buffer.lines_len:
+                if self.pos_x < self.buffer.lines_len[self.pos_y + 1]:
+                    self.pos_y += 1
+                else:
+                    self.pos_x = self.buffer.lines_len[self.pos_y + 1]
+                    self.pos_y += 1
+            else:
+                self.pos_x = self.buffer.lines_len[self.pos_y]
+
 
 def main(stdscr):
     parser = argparse.ArgumentParser()
@@ -187,6 +207,10 @@ def process_key(stdscr, buffer, cursor):
         cursor.move_left(1)
     elif k == "KEY_RIGHT":
         cursor.move_right(1)
+    elif k == "KEY_UP":
+        cursor.move_up(1)
+    elif k == "KEY_DOWN":
+        cursor.move_down(1)
     else:
         buffer.insert(k, cursor)
         cursor.move_right(len(k))
