@@ -16,13 +16,13 @@ class CellType(Enum):
 
 class Buffer:
     def __init__(self):
-        # self.text = lines
         self.buffer = [CellType.GAP] * 50
         self.gap_size = 10
         self.gap_left_index = 0
         self.gap_right_index = self.gap_left_index + self.gap_size - 1
         self.size = 10
         self.lines_len = dict()
+        self.text_len = 0
 
     def __len__(self):
         return len(self.buffer)
@@ -67,33 +67,55 @@ class Buffer:
         else:
             self.right(position)
 
-    def insert(self, input, position):
-        inp_len = len(input)
+    def insert(self, input, cursor):
+        pos_x = cursor.pos_x
+        pos_y = cursor.pos_y
 
+        if pos_y > 0:
+            for k, v in self.lines_len.items():
+                if k < pos_y:
+                    pos_x += v
+
+        if pos_x != self.gap_left_index:
+            self.move_gap(pos_x)
+
+        self.insert_input(input, pos_x)
+
+        self.update_lines_len(len(input), pos_y)
+
+    def insert_input(self, input, pos_x):
         i = 0
-
-        if position != self.gap_left_index:
-            self.move_gap(position)
-
-        while i < inp_len:
+        while i < len(input):
             if self.gap_right_index == self.gap_left_index:
-                self.grow(position)
+                self.grow(pos_x)
 
             self.buffer[self.gap_left_index] = input[i]
             self.gap_left_index += 1
             i += 1
-            position += 1
+            pos_x += 1
+
+    def update_lines_len(self, input_len, pos_y):
+        self.text_len += input_len
+
+        if self.text_len % curses.COLS == 0:
+            self.lines_len[pos_y + 1] = 0
+
+        if pos_y in self.lines_len:
+            self.lines_len[pos_y] = self.lines_len[pos_y] + input_len
+        else:
+            self.lines_len[pos_y] = input_len
 
 
 class Cursor:
-    def __init__(self, pos_y, pos_x, buffer):
+    def __init__(self, pos_y, pos_x, buffer, window_width):
         self.pos_y = pos_y
         self.pos_x = pos_x
         self.buffer = buffer
+        self.window_width = window_width
 
     def move_right(self, steps):
         for i in range(steps):
-            if self.pos_x + 1 <= self.buffer.lines_len[self.pos_y]:
+            if self.pos_x + 1 < self.window_width and self.pos_x < self.buffer.lines_len[self.pos_y]:
                 self.pos_x += 1
             else:
                 if (self.pos_y + 1) in self.buffer.lines_len:
@@ -104,9 +126,10 @@ class Cursor:
         for i in range(steps):
             if self.pos_x == 0 and self.pos_y > 0:
                 self.pos_y -= 1
-                self.pos_x = self.buffer.lines_len[self.pos_y]
+                self.pos_x = self.buffer.lines_len[self.pos_y] - 1
             elif self.pos_x > 0:
                 self.pos_x -= 1
+
 
 def main(stdscr):
     parser = argparse.ArgumentParser()
@@ -118,49 +141,55 @@ def main(stdscr):
 
     window = Window(curses.LINES - 1, curses.COLS - 1)
     buffer = Buffer()
-    cursor = Cursor(0, 0, buffer)
-    buffer.insert(text, cursor.pos_x)
+    cursor = Cursor(0, 0, buffer, curses.COLS)
+    buffer.insert(text, cursor)
 
     while True:
-        stdscr.erase()
+        print_text(stdscr, buffer)
 
-        pos_x = pos_y = 0
+        stdscr.move(cursor.pos_y, cursor.pos_x)
 
-        for i in buffer.buffer:
-            if i != CellType.GAP:
-                if i == '\n':
-                    buffer.lines_len[pos_y] = pos_x
-                    pos_x = 0
-                    pos_y += 1
-                    continue
-                stdscr.addstr(pos_y, pos_x, i)
-                pos_x += 1
-            if pos_x == curses.COLS:
+        process_key(stdscr, buffer, cursor)
+
+
+def print_text(stdscr, buffer):
+    stdscr.erase()
+
+    pos_x = pos_y = 0
+
+    for char in buffer.buffer:
+        if char != CellType.GAP:
+            stdscr.addstr(pos_y, pos_x, char)
+            if char == '\n':
                 buffer.lines_len[pos_y] = pos_x
                 pos_x = 0
                 pos_y += 1
+                buffer.lines_len[pos_y] = pos_x
+                continue
+            if pos_x == curses.COLS - 1:
+                stdscr.addstr(pos_y, pos_x, char)
+                buffer.lines_len[pos_y] = pos_x + 1
+                pos_x = 0
+                pos_y += 1
+            else:
+                stdscr.addstr(pos_y, pos_x, char)
+                pos_x += 1
+                buffer.lines_len[pos_y] = pos_x
 
-        buffer.lines_len[pos_y] = pos_x
-        stdscr.move(cursor.pos_y, cursor.pos_x)
+        stdscr.addstr(8 + pos_y, 0, str(buffer.lines_len[pos_y]))
 
-        k = stdscr.getkey()
-        if k == "q":
-            sys.exit(0)
-        # elif k == "KEY_UP":
-        #     cursor.move_up(1)
-        # elif k == "KEY_DOWN":
-        #     cursor.move_down(1)
-        elif k == "KEY_LEFT":
-            cursor.move_left(1)
-        elif k == "KEY_RIGHT":
-            cursor.move_right(1)
-        # elif k == "KEY_BACKSPACE":
-        #     if (cursor.pos_y, cursor.pos_x) > (0, 0):
-        #         cursor.move_left(1)
-        else:
-            buffer.insert(k, cursor.pos_x)
-            for _ in k:
-                cursor.move_right(1)
+
+def process_key(stdscr, buffer, cursor):
+    k = stdscr.getkey()
+    if k == "q":
+        sys.exit(0)
+    elif k == "KEY_LEFT":
+        cursor.move_left(1)
+    elif k == "KEY_RIGHT":
+        cursor.move_right(1)
+    else:
+        buffer.insert(k, cursor)
+        cursor.move_right(len(k))
 
 
 if __name__ == "__main__":
