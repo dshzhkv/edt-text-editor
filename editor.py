@@ -12,16 +12,19 @@ class Window:
 
 class CellType(Enum):
     GAP = 1
+    EMPTY = 2
 
 
 class Buffer:
     def __init__(self):
-        self.buffer = [CellType.GAP] * 50
+        self.buffer = [CellType.EMPTY] * 50
         self.gap_size = 10
         self.gap_left_index = 0
         self.gap_right_index = self.gap_left_index + self.gap_size - 1
+        for i in range(self.gap_left_index, self.gap_right_index+1):
+            self.buffer[i] = CellType.GAP
         self.size = 10
-        self.lines_len = dict()
+        self.lines_len = dict()      
 
     def __len__(self):
         return len(self.buffer)
@@ -30,12 +33,12 @@ class Buffer:
         return self.buffer[index]
 
     def grow(self, position):
-        a = self.size * [CellType.GAP]
+        a = self.size * [CellType.EMPTY]
 
         for i in range(position, self.size):
             a[i - position] = self.buffer[i]
 
-        self.buffer += self.size * [CellType.GAP]
+        self.buffer += self.size * [CellType.EMPTY]
 
         for i in range(self.gap_size):
             self.buffer[i + position] = CellType.GAP
@@ -190,7 +193,7 @@ def print_text(stdscr, buffer):
     pos_x = pos_y = 0
 
     for char in buffer.buffer:
-        if char != CellType.GAP:
+        if char != CellType.GAP and char != CellType.EMPTY :
             stdscr.addstr(pos_y, pos_x, char)
             if char == '\n':
                 buffer.lines_len[pos_y] = pos_x + 1
@@ -207,8 +210,9 @@ def print_text(stdscr, buffer):
                 stdscr.addstr(pos_y, pos_x, char)
                 pos_x += 1
                 buffer.lines_len[pos_y] = pos_x
+        else:
+            stdscr.addstr(pos_y, pos_x, "_")
 
-        stdscr.addstr(8 + pos_y, 0, str(buffer.lines_len[pos_y]))
 
 
 def process_key(stdscr, buffer, cursor):
