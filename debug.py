@@ -7,26 +7,37 @@ class CellType(Enum):
     EMPTY = 2
 
 
+class Direction(Enum):
+    Left = -1
+    Right = 1
+
+
+class Border:
+    def __init__(self, left_index, right_index):
+        self.left = left_index
+        self.right = right_index
+
+    def move(self, steps):
+        self.left += steps
+        self.right += steps
+
+
 class Buffer:
     def __init__(self, text_before_buffer, text_after_buffer):
-        self.buffer = [CellType.EMPTY] * 50
+        self.buffer_size = 50
+        self.buffer_border = Border(0, self.buffer_size - 1)
 
         self.gap_size = 10
-        self.gap_left_index = 0
-        self.gap_right_index = self.gap_left_index + self.gap_size - 1
+        self.gap_border = Border(0, self.gap_size - 1)
 
-        for i in range(self.gap_left_index, self.gap_right_index + 1):
-            self.buffer[i] = CellType.GAP
-
-        self.buffer_left_index = 0
-        self.buffer_right_index = self.buffer_left_index + 49
+        self.buffer = [CellType.GAP] * self.gap_size + \
+                      [CellType.EMPTY] * (self.buffer_size - self.gap_size)
 
         self.lines_len = dict()
 
         self.text_before_buffer = text_before_buffer
         self.text_after_buffer = text_after_buffer
 
-        self.size = 10
         self.shift = 0
 
     def __len__(self):
@@ -42,7 +53,7 @@ class Buffer:
 
         self.insert_symbols_after_gap(pos_x, temp)
 
-        self.gap_right_index += self.gap_size
+        self.gap_border.right += self.gap_size
 
     """собираем в список temp все элементы из буфера после gap_right_index, 
     чтобы потом их поместить после новых 10 гэпов"""
@@ -77,8 +88,7 @@ class Buffer:
                     self.buffer.pop(0).encode('utf-8'))
                 self.buffer += [CellType.GAP]
                 self.shift += 1
-                self.buffer_left_index += 1
-                self.buffer_right_index += 1
+                self.buffer_border.move(1)
         else:
             for i in range(self.gap_size):
                 self.buffer[i + pos_x - self.shift] = CellType.GAP
@@ -91,49 +101,47 @@ class Buffer:
             self.buffer[j] = temp.pop(0)
             j += 1
         for _ in range(len(temp)):
+            # if temp[-1] is CellType.GAP:
+            #     self.text_before_buffer.write(self.buffer.pop(0).encode('utf-8'))
+            #     self.buffer.append(temp.pop(-1))
+            # else:
+            #     self.text_after_buffer.write(temp.pop(-1).encode('utf-8'))
             if self.buffer[0] is CellType.GAP:
-                self.text_after_buffer.write(temp.pop().encode('utf-8'))
+                self.text_after_buffer.write(temp.pop(-1).encode('utf-8'))
             else:
-                self.text_before_buffer.write(self.buffer.pop(0).encode('utf-8'))
+                self.text_before_buffer.write(
+                    self.buffer.pop(0).encode('utf-8'))
                 self.buffer.append(temp.pop(0))
                 self.shift += 1
-                self.buffer_left_index += 1
-                self.buffer_right_index += 1
+                self.buffer_border.move(1)
 
-    def move_gap_left(self, pos_x):
-        while pos_x < self.gap_left_index:
-            self.gap_left_index -= 1
-            self.gap_right_index -= 1
-            self.buffer[self.gap_right_index + 1 - self.shift] = self.buffer[
-                self.gap_left_index - self.shift]
-            self.buffer[self.gap_left_index - self.shift] = CellType.GAP
-
-    def move_gap_right(self, pos_x):
-        while pos_x > self.gap_left_index:
-            self.gap_left_index += 1
-            self.gap_right_index += 1
-            self.buffer[self.gap_left_index - 1 - self.shift] = self.buffer[
-                self.gap_right_index - self.shift]
-            self.buffer[self.gap_right_index - self.shift] = CellType.GAP
+    def move_gap(self, pos_x, direction):
+        while pos_x != self.gap_border.left:
+            self.gap_border.move(direction.value)
+            if direction is Direction.Left:
+                i = self.gap_border.right + 1 - self.shift
+                g = self.gap_border.left - self.shift
+            else:
+                i = self.gap_border.left - 1 - self.shift
+                g = self.gap_border.right - self.shift
+            self.buffer[i], self.buffer[g] = self.buffer[g], CellType.GAP
 
     def move_buffer_left(self, pos_x):
-        self.move_gap_left(self.buffer_left_index)
-        while pos_x < self.gap_left_index:
+        self.move_gap(self.buffer_border.left, Direction.Left)
+        while pos_x < self.gap_border.left:
             # записываем последний символ в правый файл
             self.text_after_buffer.write(self.buffer.pop(-1).encode('utf-8'))
 
             # сдвигаем gap
-            self.gap_left_index -= 1
-            self.gap_right_index -= 1
+            self.gap_border.move(-1)
 
             # сдвигаем буфер
             self.shift -= 1
-            self.buffer_left_index -= 1
-            self.buffer_right_index -= 1
+            self.buffer_border.move(-1)
 
             # записываем в буфер после gap последний символ из левого файла
             self.text_before_buffer.seek(0)
-            self.buffer[self.gap_right_index - self.shift] = \
+            self.buffer[self.gap_border.right - self.shift] = \
                 self.text_before_buffer.read().decode()[-1]
             # убираем последний символ из левого файла
             size = self.text_before_buffer.tell()
@@ -143,15 +151,16 @@ class Buffer:
             self.buffer.insert(0, CellType.GAP)
 
     def move_buffer_right(self, pos_x):
-        self.move_gap_right(self.buffer_right_index - (self.gap_right_index -
-                                                       self.gap_left_index))
-        while pos_x > self.gap_left_index:
+        self.move_gap(self.buffer_border.right - (self.gap_border.right -
+                                                  self.gap_border.left),
+                      Direction.Right)
+        while pos_x > self.gap_border.left:
             # записываем первый символ в левый файл
             self.text_before_buffer.write(self.buffer.pop(0).encode('utf-8'))
 
             # записываем в буфер после gap последний символ из левого файла
             self.text_after_buffer.seek(0)
-            self.buffer[self.gap_left_index - 1 - self.shift] = \
+            self.buffer[self.gap_border.left - 1 - self.shift] = \
                 self.text_after_buffer.read().decode()[-1]
             # убираем последний символ из левого файла
             size = self.text_after_buffer.tell()
@@ -161,56 +170,54 @@ class Buffer:
             self.buffer.append(CellType.GAP)
 
             # сдвигаем gap
-            self.gap_left_index += 1
-            self.gap_right_index += 1
+            self.gap_border.move(1)
 
             # сдвигаем буфер
             self.shift += 1
-            self.buffer_left_index += 1
-            self.buffer_right_index += 1
+            self.buffer_border.move(1)
 
-    def move_gap(self, pos_x):
-        if pos_x < self.buffer_left_index:
+    def move_to_cursor(self, pos_x):
+        if pos_x < self.buffer_border.left:
             self.move_buffer_left(pos_x)
-        elif pos_x > self.buffer_right_index:
+        elif pos_x > self.buffer_border.right:
             self.move_buffer_right(pos_x)
-        elif pos_x < self.gap_left_index:
-            self.move_gap_left(pos_x)
+        elif pos_x < self.gap_border.left:
+            self.move_gap(pos_x, Direction.Left)
         else:
-            self.move_gap_right(pos_x)
+            self.move_gap(pos_x, Direction.Right)
 
-    def insert(self, input, cursor):
+    def insert(self, input_string, cursor):
         pos_x = cursor.pos_x
         pos_y = cursor.pos_y
 
         if pos_y > 0:
             pos_x = self.count_real_pos_x(pos_x, pos_y)
 
-        if pos_x != self.gap_left_index:
-            self.move_gap(pos_x)
+        if pos_x != self.gap_border.left:
+            self.move_to_cursor(pos_x)
 
-        self.insert_input(input, pos_x)
+        self.insert_input(input_string, pos_x)
 
-        self.update_lines_len(len(input), pos_y)
+        # self.update_lines_len(len(input_string), pos_y)
 
-    def insert_input(self, input, pos_x):
+    def insert_input(self, input_string, pos_x):
         i = 0
-        while i < len(input):
-            if self.gap_right_index == self.gap_left_index:
+        while i < len(input_string):
+            if self.gap_border.left == self.gap_border.right:
                 self.grow(pos_x)
 
-            self.buffer[self.gap_left_index - self.shift] = input[i]
-            self.gap_left_index += 1
+            self.buffer[self.gap_border.left - self.shift] = input_string[i]
+            self.gap_border.left += 1
             i += 1
             pos_x += 1
 
-    def update_lines_len(self, input_len, pos_y):
-        if pos_y in self.lines_len:
-            # if self.lines_len[pos_y] == curses.COLS:
-            #     self.lines_len[pos_y + 1] = 0
-            self.lines_len[pos_y] = self.lines_len[pos_y] + input_len
-        else:
-            self.lines_len[pos_y] = input_len
+    # def update_lines_len(self, input_len, pos_y):
+    #     if pos_y in self.lines_len:
+    #         if self.lines_len[pos_y] == curses.COLS:
+    #             self.lines_len[pos_y + 1] = 0
+    #         self.lines_len[pos_y] = self.lines_len[pos_y] + input_len
+    #     else:
+    #         self.lines_len[pos_y] = input_len
 
     def delete(self, cursor):
         pos_x = cursor.pos_x
@@ -219,11 +226,11 @@ class Buffer:
         if pos_y > 0:
             pos_x = self.count_real_pos_x(pos_x, pos_y)
 
-        if pos_x + 1 != self.gap_left_index:
-            self.move_gap(pos_x + 1)
+        if pos_x + 1 != self.gap_border.left:
+            self.move_to_cursor(pos_x + 1)
 
-        self.gap_left_index -= 1
-        self.buffer[self.gap_left_index - self.shift] = CellType.GAP
+        self.gap_border.left -= 1
+        self.buffer[self.gap_border.left - self.shift] = CellType.GAP
 
     def count_real_pos_x(self, pos_x, pos_y):
         for k, v in self.lines_len.items():
