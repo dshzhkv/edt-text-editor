@@ -1,5 +1,5 @@
 from unittest import TestCase
-from editor2 import Buffer, Cursor
+from editor import Buffer, Cursor
 import tempfile
 
 
@@ -99,7 +99,13 @@ class TestBuffer(TestCase):
         # еще прикол, тесты вообще не работают если оставить строчку с налом)
         assert text_before_buffer == '-Hello, World! Hell'
 
-    def test_lines_lengths_are_correct(self):
+    def test_lines_lengths_are_correct_after_creation(self):
         buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
         assert buffer.lines_len[0] == 13
+        assert buffer.lines_len[1] == 4
+
+    def test_lines_lengths_after_insert_at_0_0(self):
+        buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
+        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
+        assert buffer.lines_len[0] == 14
         assert buffer.lines_len[1] == 4

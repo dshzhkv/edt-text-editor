@@ -37,6 +37,7 @@ class Buffer:
                       [CellType.EMPTY] * (self.buffer_size - self.gap_size)
 
         self.lines_len = dict()
+        self.lines_with_line_breaks = []
 
         self.text_before_buffer = text_before_buffer
         self.text_after_buffer = text_after_buffer
@@ -206,11 +207,15 @@ class Buffer:
             self.buffer[self.gap_border.left - self.shift] = char
 
             if char == '\n' or pos_x == self.window_width - 1:
+                self.lines_with_line_breaks.append(pos_y)
                 pos_y += 1
                 pos_x = 0
             else:
                 pos_x += 1
-                self.lines_len[pos_y] = pos_x
+                if pos_y not in self.lines_len.keys():
+                    self.lines_len[pos_y] = 1
+                else:
+                    self.lines_len[pos_y] += 1
 
             self.gap_border.left += 1
 
@@ -231,6 +236,8 @@ class Buffer:
         for k, v in self.lines_len.items():
             if k < pos_y:
                 pos_x += v
+                if k in self.lines_with_line_breaks:
+                    pos_x += 1
         return pos_x
 
 

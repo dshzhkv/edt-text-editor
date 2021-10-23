@@ -23,7 +23,7 @@ class Border:
 
 
 class Buffer:
-    def __init__(self, text_before_buffer, text_after_buffer):
+    def __init__(self, text_before_buffer, text_after_buffer, window_width):
         self.buffer_size = 50
         self.buffer_border = Border(0, self.buffer_size - 1)
 
@@ -34,11 +34,14 @@ class Buffer:
                       [CellType.EMPTY] * (self.buffer_size - self.gap_size)
 
         self.lines_len = dict()
+        self.lines_with_line_breaks = []
 
         self.text_before_buffer = text_before_buffer
         self.text_after_buffer = text_after_buffer
 
         self.shift = 0
+
+        self.window_width = window_width
 
     def __len__(self):
         return len(self.buffer)
@@ -55,7 +58,7 @@ class Buffer:
 
         self.gap_border.right += self.gap_size
 
-    """собираем в список temp все элементы из буфера после правой границы гэпа, 
+    """собираем в список temp все элементы из буфера после gap_right_index, 
     чтобы потом их поместить после новых 10 гэпов"""
 
     def get_elements_to_move(self, pos_x):
@@ -101,11 +104,6 @@ class Buffer:
             self.buffer[j] = temp.pop(0)
             j += 1
         for _ in range(len(temp)):
-            # if temp[-1] is CellType.GAP:
-            #     self.text_before_buffer.write(self.buffer.pop(0).encode('utf-8'))
-            #     self.buffer.append(temp.pop(-1))
-            # else:
-            #     self.text_after_buffer.write(temp.pop(-1).encode('utf-8'))
             if self.buffer[0] is CellType.GAP:
                 self.text_after_buffer.write(temp.pop(-1).encode('utf-8'))
             else:
@@ -196,28 +194,27 @@ class Buffer:
         if pos_x != self.gap_border.left:
             self.move_to_cursor(pos_x)
 
-        self.insert_input(input_string, pos_x)
+        self.insert_input(input_string, pos_x, pos_y)
 
-        # self.update_lines_len(len(input_string), pos_y)
-
-    def insert_input(self, input_string, pos_x):
-        i = 0
-        while i < len(input_string):
+    def insert_input(self, input_string, pos_x, pos_y):
+        for char in input_string:
             if self.gap_border.left == self.gap_border.right:
                 self.grow(pos_x)
 
-            self.buffer[self.gap_border.left - self.shift] = input_string[i]
-            self.gap_border.left += 1
-            i += 1
-            pos_x += 1
+            self.buffer[self.gap_border.left - self.shift] = char
 
-    # def update_lines_len(self, input_len, pos_y):
-    #     if pos_y in self.lines_len:
-    #         if self.lines_len[pos_y] == curses.COLS:
-    #             self.lines_len[pos_y + 1] = 0
-    #         self.lines_len[pos_y] = self.lines_len[pos_y] + input_len
-    #     else:
-    #         self.lines_len[pos_y] = input_len
+            if char == '\n' or pos_x == self.window_width - 1:
+                self.lines_with_line_breaks.append(pos_y)
+                pos_y += 1
+                pos_x = 0
+            else:
+                pos_x += 1
+                if pos_y not in self.lines_len.keys():
+                    self.lines_len[pos_y] = 1
+                else:
+                    self.lines_len[pos_y] += 1
+
+            self.gap_border.left += 1
 
     def delete(self, cursor):
         pos_x = cursor.pos_x
@@ -226,16 +223,23 @@ class Buffer:
         if pos_y > 0:
             pos_x = self.count_real_pos_x(pos_x, pos_y)
 
-        if pos_x + 1 != self.gap_border.left:
-            self.move_to_cursor(pos_x + 1)
+        if pos_x != self.gap_border.left:
+            self.move_to_cursor(pos_x)
 
+        self.buffer[pos_x - 1 - self.shift] = CellType.GAP
         self.gap_border.left -= 1
-        self.buffer[self.gap_border.left - self.shift] = CellType.GAP
+        self.lines_len[pos_y] -= 1
+
+        if self.lines_len[pos_y] == 0 and pos_y + 1 in self.lines_len.keys():
+            self.lines_len[pos_y] = self.lines_len[pos_y + 1]
+            self.lines_len[pos_y + 1] = 0
 
     def count_real_pos_x(self, pos_x, pos_y):
         for k, v in self.lines_len.items():
             if k < pos_y:
                 pos_x += v
+                if k in self.lines_with_line_breaks:
+                    pos_x += 1
         return pos_x
 
 
@@ -247,11 +251,16 @@ class Cursor:
 
 
 def main():
-    buffer = Buffer(tempfile.NamedTemporaryFile(), tempfile.NamedTemporaryFile())
+    buffer = Buffer(tempfile.NamedTemporaryFile(), tempfile.NamedTemporaryFile(), 120)
     with open("1.txt") as file:
         text = file.read()
 
     buffer.insert(text, Cursor(0, 0, buffer))
+
+    for i in range(4, -1, -1):
+        buffer.delete(Cursor(1, i, buffer))
+    for i in range(13, -1, -1):
+        buffer.delete(Cursor(0, i, buffer))
 
     print_text(buffer)
 
