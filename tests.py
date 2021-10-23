@@ -11,7 +11,7 @@ class TestBuffer(TestCase):
         window_width = 120
         buffer = Buffer(tempfile.NamedTemporaryFile(),
                               tempfile.NamedTemporaryFile(), window_width)
-        buffer.insert(input_string, Cursor(0, 0, buffer, window_width))
+        buffer.insert(input_string, Cursor(0, 0, buffer))
         return buffer
 
     @staticmethod
@@ -44,18 +44,18 @@ class TestBuffer(TestCase):
 
     def test_move_gap_left(self):
         buffer = self.create_new_buffer("Hello, World!")
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
         self.assert_gap_is_correct(buffer, 6, 1, 6)
 
     def test_move_gap_right(self):
         buffer = self.create_new_buffer("Hello, World!")
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
-        buffer.insert('!', Cursor(0, 14, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
+        buffer.insert('!', Cursor(0, 14, buffer))
         self.assert_gap_is_correct(buffer, 5, 15, 19)
 
     def test_move_buffer_left(self):
         buffer = self.create_new_buffer(("Hello, World!" + ' ') * 4)
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
         assert buffer.buffer[0] == '-'
         text_before_buffer = self.get_text_before_buffer(buffer)
         assert len(text_before_buffer) == 0
@@ -65,21 +65,21 @@ class TestBuffer(TestCase):
 
     def test_grow_gap_after_move_buffer_left(self):
         buffer = self.create_new_buffer(("Hello, World!" + ' ') * 4)
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
-        buffer.insert('-' * 3, Cursor(0, 1, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
+        buffer.insert('-' * 3, Cursor(0, 1, buffer))
         self.assert_gap_is_correct(buffer, 10, 4, 13)
         text_after_buffer = self.get_text_after_buffer(buffer)
         assert text_after_buffer == 'd! Hello, World! '
 
     def test_move_buffer_right(self):
         buffer = self.create_new_buffer(("Hello, World!" + ' ') * 4)
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
         # очень странно, но если убрать следующую строчку, то тест не проходит
         # из-за того, что в тексте до буфера в начале появляется какой то nul
         # byte. но вместе с этой строчкой он не добавляется. это какой-то
         # прикол с этими temp файлами
         self.get_text_before_buffer(buffer)
-        buffer.insert('!', Cursor(0, 56, buffer, self.window_width))
+        buffer.insert('!', Cursor(0, 56, buffer))
         text_before_buffer = self.get_text_before_buffer(buffer)
         assert text_before_buffer == '-Hello, W', text_before_buffer
         text_after_buffer = self.get_text_after_buffer(buffer)
@@ -88,9 +88,9 @@ class TestBuffer(TestCase):
 
     def test_grow_gap_after_move_buffer_right(self):
         buffer = self.create_new_buffer(("Hello, World!" + ' ') * 4)
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
+        buffer.insert('-', Cursor(0, 0, buffer))
         self.get_text_before_buffer(buffer)
-        buffer.insert('!' * 3, Cursor(0, 56, buffer, self.window_width))
+        buffer.insert('!' * 3, Cursor(0, 56, buffer))
         self.assert_gap_is_correct(buffer, 10, 59, 68)
         text_before_buffer = self.get_text_before_buffer(buffer)
         # аналогичная ошибка что и в прошлом тесте:
@@ -99,13 +99,21 @@ class TestBuffer(TestCase):
         # еще прикол, тесты вообще не работают если оставить строчку с налом)
         assert text_before_buffer == '-Hello, World! Hell'
 
-    def test_lines_lengths_are_correct_after_creation(self):
-        buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
-        assert buffer.lines_len[0] == 13
-        assert buffer.lines_len[1] == 4
+    # def test_lines_lengths_are_correct_after_creation(self):
+    #     buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
+    #     assert buffer.lines_len[0] == 13
+    #     assert buffer.lines_len[1] == 4
 
-    def test_lines_lengths_after_insert_at_0_0(self):
-        buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
-        buffer.insert('-', Cursor(0, 0, buffer, self.window_width))
-        assert buffer.lines_len[0] == 14
-        assert buffer.lines_len[1] == 4
+    # def test_lines_lengths_after_insert_at_0_0(self):
+    #     buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
+    #     buffer.insert('-', Cursor(0, 0, buffer))
+    #     assert buffer.lines_len[0] == 14
+    #     assert buffer.lines_len[1] == 4
+    #
+    # def test_second_line_moves_after_first_is_finished(self):
+    #     buffer = self.create_new_buffer('Dasha Zhukova\nEgor')
+    #     buffer.insert('-' * 108, Cursor(0, 0, buffer))
+    #     assert buffer.lines_len[0] == 120
+    #     assert buffer.lines_len[1] == 1
+    #     assert buffer.lines_len[2] == 4
+
