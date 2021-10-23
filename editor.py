@@ -26,7 +26,7 @@ class Border:
 
 
 class Buffer:
-    def __init__(self, text_before_buffer, text_after_buffer):
+    def __init__(self, text_before_buffer, text_after_buffer, window_width):
         self.buffer_size = 50
         self.buffer_border = Border(0, self.buffer_size - 1)
 
@@ -42,6 +42,8 @@ class Buffer:
         self.text_after_buffer = text_after_buffer
 
         self.shift = 0
+
+        self.window_width = window_width
 
     def __len__(self):
         return len(self.buffer)
@@ -194,28 +196,23 @@ class Buffer:
         if pos_x != self.gap_border.left:
             self.move_to_cursor(pos_x)
 
-        self.insert_input(input_string, pos_x)
+        self.insert_input(input_string, pos_x, pos_y)
 
-        self.update_lines_len(len(input_string), pos_y)
-
-    def insert_input(self, input_string, pos_x):
-        i = 0
-        while i < len(input_string):
+    def insert_input(self, input_string, pos_x, pos_y):
+        for char in input_string:
             if self.gap_border.left == self.gap_border.right:
                 self.grow(pos_x)
 
-            self.buffer[self.gap_border.left - self.shift] = input_string[i]
-            self.gap_border.left += 1
-            i += 1
-            pos_x += 1
+            self.buffer[self.gap_border.left - self.shift] = char
 
-    def update_lines_len(self, input_len, pos_y):
-        if pos_y in self.lines_len:
-            if self.lines_len[pos_y] == curses.COLS:
-                self.lines_len[pos_y + 1] = 0
-            self.lines_len[pos_y] = self.lines_len[pos_y] + input_len
-        else:
-            self.lines_len[pos_y] = input_len
+            if char == '\n' or pos_x == self.window_width - 1:
+                pos_y += 1
+                pos_x = 0
+            else:
+                pos_x += 1
+                self.lines_len[pos_y] = pos_x
+
+            self.gap_border.left += 1
 
     def delete(self, cursor):
         pos_x = cursor.pos_x
@@ -238,15 +235,16 @@ class Buffer:
 
 
 class Cursor:
-    def __init__(self, pos_y, pos_x, buffer):
+    def __init__(self, pos_y, pos_x, buffer, window_width):
         self.pos_y = pos_y
         self.pos_x = pos_x
         self.buffer = buffer
+        self.window_width = window_width
 
     def move_right(self, steps):
         for i in range(steps):
-            if self.pos_x + 1 < curses.COLS and self.pos_x < \
-                    self.buffer.lines_len[self.pos_y] - 1:
+            if self.pos_x < self.window_width and self.pos_x < \
+                    self.buffer.lines_len[self.pos_y]:
                 self.pos_x += 1
             else:
                 if (self.pos_y + 1) in self.buffer.lines_len:
@@ -290,8 +288,9 @@ def main(stdscr):
     with open(args.filename) as f:
         text = f.read()
 
-    buffer = Buffer(tempfile.TemporaryFile(), tempfile.TemporaryFile())
-    cursor = Cursor(0, 0, buffer)
+    buffer = Buffer(tempfile.TemporaryFile(), tempfile.TemporaryFile(),
+                    curses.COLS)
+    cursor = Cursor(0, 0, buffer, curses.COLS)
     buffer.insert(text, cursor)
 
     while True:
@@ -310,61 +309,42 @@ def print_text(stdscr, buffer):
     buffer.text_before_buffer.seek(0)
     text_before_buffer = buffer.text_before_buffer.read().decode()
     for char in text_before_buffer:
-        stdscr.addstr(pos_y, pos_x, char)
+        if (pos_y in buffer.lines_len.keys() and
+                pos_x == buffer.lines_len[pos_y]) or pos_x == curses.COLS - 1:
+            pos_x = 0
+            pos_y += 1
+
         if char == '\n':
-            buffer.lines_len[pos_y] = pos_x + 1
-            pos_x = 0
-            pos_y += 1
-            buffer.lines_len[pos_y] = pos_x
             continue
-        if pos_x == curses.COLS - 1:
-            stdscr.addstr(pos_y, pos_x, char)
-            buffer.lines_len[pos_y] = pos_x + 1
-            pos_x = 0
-            pos_y += 1
-        else:
-            stdscr.addstr(pos_y, pos_x, char)
-            pos_x += 1
-            buffer.lines_len[pos_y] = pos_x
+
+        stdscr.addstr(pos_y, pos_x, char)
+        pos_x += 1
 
     for char in buffer.buffer:
-        if char != CellType.GAP and char != CellType.EMPTY:
-            stdscr.addstr(pos_y, pos_x, char)
-            if char == '\n':
-                buffer.lines_len[pos_y] = pos_x + 1
-                pos_x = 0
-                pos_y += 1
-                buffer.lines_len[pos_y] = pos_x
-                continue
-            if pos_x == curses.COLS - 1:
-                stdscr.addstr(pos_y, pos_x, char)
-                buffer.lines_len[pos_y] = pos_x + 1
-                pos_x = 0
-                pos_y += 1
-            else:
-                stdscr.addstr(pos_y, pos_x, char)
-                pos_x += 1
-                buffer.lines_len[pos_y] = pos_x
+        if (pos_y in buffer.lines_len.keys() and
+                pos_x == buffer.lines_len[pos_y]) or pos_x == curses.COLS - 1:
+            pos_x = 0
+            pos_y += 1
+
+        if char == '\n' or char is CellType.GAP or char is CellType.EMPTY:
+            continue
+
+        stdscr.addstr(pos_y, pos_x, char)
+        pos_x += 1
 
     buffer.text_after_buffer.seek(0)
     text_after_buffer = buffer.text_after_buffer.read().decode()[::-1]
     for char in text_after_buffer:
-        stdscr.addstr(pos_y, pos_x, char)
+        if (pos_y in buffer.lines_len.keys() and
+                pos_x == buffer.lines_len[pos_y]) or pos_x == curses.COLS - 1:
+            pos_x = 0
+            pos_y += 1
+
         if char == '\n':
-            buffer.lines_len[pos_y] = pos_x + 1
-            pos_x = 0
-            pos_y += 1
-            buffer.lines_len[pos_y] = pos_x
             continue
-        if pos_x == curses.COLS - 1:
-            stdscr.addstr(pos_y, pos_x, char)
-            buffer.lines_len[pos_y] = pos_x + 1
-            pos_x = 0
-            pos_y += 1
-        else:
-            stdscr.addstr(pos_y, pos_x, char)
-            pos_x += 1
-            buffer.lines_len[pos_y] = pos_x
+
+        stdscr.addstr(pos_y, pos_x, char)
+        pos_x += 1
 
 
 def process_key(stdscr, buffer, cursor):

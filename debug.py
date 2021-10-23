@@ -55,7 +55,7 @@ class Buffer:
 
         self.gap_border.right += self.gap_size
 
-    """собираем в список temp все элементы из буфера после gap_right_index, 
+    """собираем в список temp все элементы из буфера после правой границы гэпа, 
     чтобы потом их поместить после новых 10 гэпов"""
 
     def get_elements_to_move(self, pos_x):
