@@ -12,12 +12,6 @@ class Change:
         self.input = input
 
 
-class Cursor:
-    def __init__(self, pos_y, pos_x):
-        self.pos_y = pos_y
-        self.pos_x = pos_x
-
-
 class Page:
     def __init__(self, start, end, index):
         self.start = start
@@ -30,7 +24,6 @@ class Page:
 
 class FileModel:
     def __init__(self, file_size):
-
 
      def insert(self, input_str, cursor):
         pass
@@ -73,6 +66,7 @@ class Cursor:
                 self.pos_y -= 1
                 self.pos_x = len(self.buffer[self.pos_y])
 
+
 class Editor:
     def __init__(self, filename):
         self.filename = filename
@@ -82,43 +76,42 @@ class Editor:
         self.file = open(filename)
 
         self.page_size = 4096
-        self.pages = [Page(0, page_size - 1, 0)]
+        self.pages = [Page(0, self.page_size - 1, 0)]
 
+        self.current_page = self.pages[0]
         
         self.buffer = buffer.Buffer()
         self.read_n_bytes(self.page_size)
         self.changes = {}
 
     def insert(self, input_str, cursor):
-        
-        self.changes[page_index] = Change("paste", cursor, input_str)
-        self.buffer.insert() 
+        self.changes[self.current_page.index] = Change("paste", cursor,
+                                                       input_str)
+        self.buffer.insert(input_str, cursor)
 
     def delete(self, cursor):
-        self.changes.add("remove")
-        self.buffer.delete()
+        self.changes[self.current_page.index] = Change("remove", cursor)
+        self.buffer.delete(cursor)
 
     def read_n_bytes(self, n):
         text = self.filename.read(n)
-        self.buffer.insert(text)
+        self.buffer.insert(text, )
 
 
 class EditorUi:
     def __init__(self, filename):
         self.filename = filename
-        self.cursor = Cursor(0, 0)
         self.editor = Editor(filename)
+        self.cursor = Cursor(0, 0, self.editor.buffer)
 
     def main(self, stdscr: curses.window):
 
         while True:
             self.clear()
-            self.process_key(stdscr, self.cursor)
+            self.handle_key(stdscr, self.cursor)
             self.print_text()
-            
 
-
-    def process_key(self, stdscr, cursor):
+    def handle_key(self, stdscr, cursor):
         k = stdscr.getkey()
         if k == "q":
             sys.exit(0)
@@ -138,6 +131,9 @@ class EditorUi:
             cursor.move_right(len(k))
 
     def print_text(self):
+        pass
+
+    def clear(self):
         pass
 
 
